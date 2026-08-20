@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:230410219102:android:bde7cc2c49eb50e56fcecf",
+        "android_client_info": {
+          "package_name": "com.crunchyhot.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA8OeQl_ISZC3QxoXO7Qw_p6_1zWGlPU0I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:230410219102:android:74cb3fa152e4c9456fcecf",
         "android_client_info": {
           "package_name": "com.example.crunchy_hot"

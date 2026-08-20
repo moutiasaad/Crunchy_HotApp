@@ -1,4 +1,4 @@
-package com.example.crunchy_hot
+package com.crunchyhot.app
 
 import io.flutter.embedding.android.FlutterActivity
 

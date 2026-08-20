@@ -51,12 +51,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyA8OeQl_ISZC3QxoXO7Qw_p6_1zWGlPU0I',
-    appId: '1:230410219102:android:74cb3fa152e4c9456fcecf',
+    appId: '1:230410219102:android:bde7cc2c49eb50e56fcecf',
     messagingSenderId: '230410219102',
     projectId: 'crunchy-hot',
     storageBucket: 'crunchy-hot.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD3N1ifDMFV6qzeuu22emXInGDdSeE1hHI',
     appId: '1:230410219102:ios:dea64576473f954d6fcecf',
@@ -65,7 +64,6 @@ class DefaultFirebaseOptions {
     storageBucket: 'crunchy-hot.firebasestorage.app',
     iosBundleId: 'com.example.crunchyHot',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD3N1ifDMFV6qzeuu22emXInGDdSeE1hHI',
     appId: '1:230410219102:ios:dea64576473f954d6fcecf',
