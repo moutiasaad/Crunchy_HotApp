@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <!--
+       The source PNG (assets/crunchy-hot-logo-padded.png) already has ~17%
+       transparent margin baked into every side, sized to sit inside the
+       66dp safe zone of the 108dp adaptive-icon canvas. Do NOT re-wrap
+       in an <inset> — flutter_launcher_icons keeps re-adding one; delete
+       it after every regeneration.
+  -->
+  <background android:drawable="@color/ic_launcher_background"/>
+  <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>

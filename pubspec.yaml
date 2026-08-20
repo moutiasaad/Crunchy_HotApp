@@ -1,0 +1,96 @@
+name: crunchy_hot
+description: "Crunchy Hot — fast-food ordering (Aleppo, Syria)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  dio: ^5.7.0
+  google_fonts: ^6.2.1
+  intl: ^0.20.2
+  provider: ^6.1.5
+  shared_preferences: ^2.3.4
+
+  # ── Push notifications (FCM) ──────────────────────────────────
+  # Configured by `flutterfire configure`; DefaultFirebaseOptions lives
+  # in lib/firebase_options.dart. flutter_local_notifications displays
+  # foreground messages consistently across Android & iOS (FCM alone
+  # doesn't render a system notification while the app is foregrounded).
+  firebase_core:                ^3.6.0
+  firebase_messaging:           ^15.1.3
+  flutter_local_notifications:  ^17.2.3
+
+  # ── External links ────────────────────────────────────────────
+  # Opens the /privacy web page in the system browser and hands the
+  # "call the branch" phone links out to the dialer.
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/crunchy-hot-logo.jpg
+
+# -----------------------------------------------------------------
+# App icon generation: `dart run flutter_launcher_icons`
+#
+# The "-padded" asset is the same logo composited onto a 1024²
+# transparent canvas with ~17% margin on each side. The raw JPG is
+# edge-to-edge, so Android's circular adaptive-icon mask (and the
+# 192dp Android-12 splash circle) chops off the wordmark. Baking
+# the safe-zone padding into the source file is the only fix that
+# works for iOS + legacy Android + adaptive + Android-12 splash
+# without maintaining four different masters.
+# -----------------------------------------------------------------
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/crunchy-hot-logo-padded.png"
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/crunchy-hot-logo-padded.png"
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+# -----------------------------------------------------------------
+# Native launch screen (the OS-level splash before Flutter boots):
+# must match the Flutter splash so there is no visual jump.
+# Run: `dart run flutter_native_splash:create`
+# -----------------------------------------------------------------
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/crunchy-hot-logo-padded.png
+  # `fullscreen: true` hides the status bar during the splash so the logo
+  # gets the whole viewport — matches the reference mock and stops the
+  # logo from looking small at the top of a tall canvas.
+  fullscreen: true
+  android_12:
+    color: "#FFFFFF"
+    image: assets/crunchy-hot-logo-padded.png
+    # Android 12's splash API constrains the icon to a 192-dp circle by
+    # default; icon_background_color + a colored plate stops the logo
+    # from being clipped to a tiny centre disk on modern devices.
+    icon_background_color: "#FFFFFF"
+  android: true
+  ios: true
+  web: false
