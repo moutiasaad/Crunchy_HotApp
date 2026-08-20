@@ -608,30 +608,32 @@ class _FeaturedSkeleton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 14),
       child: Container(
-        height: 260,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: ChShadows.raised,
         ),
-        child: Column(children: [
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Container(color: CH.cream2),
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(children: [
-              Expanded(child: Container(height: 14, color: CH.cream2)),
-              const SizedBox(width: 12),
-              Container(width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: CH.cream2,
-                  borderRadius: BorderRadius.circular(13))),
-            ]),
-          ),
-        ]),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: Container(color: CH.cream2),
+            ),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(children: [
+                Expanded(child: Container(height: 14, color: CH.cream2)),
+                const SizedBox(width: 12),
+                Container(width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: CH.cream2,
+                    borderRadius: BorderRadius.circular(13))),
+              ]),
+            ),
+          ],
+        ),
       ),
     );
   }
