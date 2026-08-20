@@ -9,11 +9,11 @@ class ApiConfig {
 
   /// Publicly-hosted API base — HTTPS, ATS-compliant, works from any
   /// network (not just the developer's LAN).
-  static const String baseUrl = 'http://192.168.100.31:8000/api/v1';
+  static const String baseUrl = 'https://crunchyhot.online/api/v1';
 
   /// Root of the same server (no `/api/v1`) — used for browser-facing pages
   /// like the privacy policy that live on web.php, not api.php.
-  static const String webBaseUrl = 'http://192.168.100.31:8000';
+  static const String webBaseUrl = 'https://crunchyhot.online';
 
   /// Publicly-hosted privacy policy. Same URL is submitted to Play Store and
   /// App Store listings and opened from Profile → «الشروط والخصوصية».
