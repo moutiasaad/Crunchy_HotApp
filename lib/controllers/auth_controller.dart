@@ -19,7 +19,7 @@ class AuthController extends ChangeNotifier {
 
   // ─────────────── state ───────────────
   User?   _user;
-  String? _pendingEmail;   // set between requestOtp() and verifyOtp()
+  String? _pendingPhone;   // set between requestOtp() and verifyOtp()
   bool    _sending = false;
   String? _error;
   int     _cooldownSecs = 0;
@@ -34,12 +34,13 @@ class AuthController extends ChangeNotifier {
   String? get error            => _error;
   int     get cooldownSecs     => _cooldownSecs;
   bool    get onCooldown       => _cooldownSecs > 0;
-  String? get pendingEmail     => _pendingEmail;
-  String? get lastEmail        => _prefs.lastEmail;
+  String? get pendingPhone     => _pendingPhone;
+  String? get lastPhone        => _prefs.lastPhone;
+  String? get lastEmail        => _prefs.lastEmail;   // legacy, still used by email-change UI
   bool    get bootstrapped     => _bootstrapped;
 
   /// True when the user is signed in AND has completed their profile
-  /// (real name + phone). Used by Splash to decide Home vs Register.
+  /// (display name). Phone is guaranteed by the login flow now.
   bool get needsProfile        => isSignedIn && !(_user!.isProfileComplete);
 
   // ─────────────── bootstrap (session persistence) ───────────────
@@ -126,16 +127,17 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// POST /profile/complete — writes name + phone. Returns true on success.
-  Future<bool> completeProfile({required String name, required String phone}) async {
+  /// POST /profile/complete — writes name (+ optional email). Phone is
+  /// already set by the OTP login flow. Returns true on success.
+  Future<bool> completeProfile({required String name, String? email}) async {
     _sending = true;
     _error   = null;
     notifyListeners();
     try {
-      _user = await _service.completeProfile(name: name, phone: phone);
+      _user = await _service.completeProfile(name: name, email: email);
       return true;
     } on ApiValidationException catch (e) {
-      _error = e.firstError ?? 'تحقّق من الاسم ورقم الهاتف';
+      _error = e.firstError ?? 'تحقّق من البيانات';
       return false;
     } catch (_) {
       _error = 'حدث خطأ ما — جرّب مرة تانية';
@@ -147,18 +149,25 @@ class AuthController extends ChangeNotifier {
   }
 
   // ─────────────── mutations ───────────────
-  Future<bool> requestOtp(String email) async {
+  /// Ask the backend to send a 6-digit OTP via WhatsApp to [phone] (E.164).
+  Future<bool> requestOtp(String phone) async {
     _sending = true;
     _error   = null;
     notifyListeners();
 
     try {
-      await _service.requestOtp(email);
-      _pendingEmail = email.trim().toLowerCase();
+      await _service.requestOtp(phone);
+      _pendingPhone = phone.trim();
       return true;
     } on RateLimitedException catch (e) {
       _error = e.message;
       _startCooldown(60);
+      return false;
+    } on ApiValidationException catch (e) {
+      // Backend returns 422 for both invalid phone and wavadesk refusals
+      // (invalid_phone, no_instance, cooldown, gateway_error) — surface the
+      // Arabic message verbatim.
+      _error = e.firstError ?? 'رقم غير صحيح — تأكّد من الصياغة';
       return false;
     } catch (_) {
       _error = 'حدث خطأ ما — جرّب مرة تانية';
@@ -170,15 +179,15 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<bool> verifyOtp(String code) async {
-    if (_pendingEmail == null) return false;
+    if (_pendingPhone == null) return false;
 
     _sending = true;
     _error   = null;
     notifyListeners();
 
     try {
-      _user = await _service.verifyOtp(_pendingEmail!, code);
-      _pendingEmail = null;
+      _user = await _service.verifyOtp(_pendingPhone!, code);
+      _pendingPhone = null;
       return true;
     } on WrongOtpException catch (e) {
       _error = e.message;
@@ -260,7 +269,7 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     await _service.logout();
     _user = null;
-    _pendingEmail = null;
+    _pendingPhone = null;
     _error = null;
     // Signing out is a "reset the app to a stranger" moment — show the
     // onboarding flow again on next launch instead of jumping straight

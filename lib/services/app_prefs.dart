@@ -35,6 +35,7 @@ class AppPrefs {
   static const _kOnboardingSeen  = 'onboarding_seen';
   static const _kRecentSearches  = 'recent_searches';
   static const _kLastEmail       = 'last_email';
+  static const _kLastPhone       = 'last_phone';
   static const _kAuthToken       = 'auth_token';
   static const _kCartState       = 'cart_state';
   static const int _kMaxRecents  = 10;
@@ -69,9 +70,13 @@ class AppPrefs {
 
   Future<void> clearRecentSearches() => _sp.remove(_kRecentSearches);
 
-  // ---------------- Last email (prefill on repeat sign-in) ----------------
+  // ---------------- Last email (kept for the profile email-change flow) ----
   String? get lastEmail                => _sp.getString(_kLastEmail);
   Future<void> setLastEmail(String e)  => _sp.setString(_kLastEmail, e);
+
+  // ---------------- Last phone (prefill Login on repeat sign-in) ----------
+  String? get lastPhone                => _sp.getString(_kLastPhone);
+  Future<void> setLastPhone(String p)  => _sp.setString(_kLastPhone, p);
 
   // ---------------- Auth token (Laravel Sanctum bearer) ----------------
   String? get authToken                  => _sp.getString(_kAuthToken);

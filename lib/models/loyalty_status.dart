@@ -60,13 +60,16 @@ class LoyaltyRules {
   });
 
   factory LoyaltyRules.fromJson(Map<String, dynamic> j) => LoyaltyRules(
-        earnRatePer1000Syp:     (j['earn_rate_per_1000_syp']     ?? 5) as int,
-        redeemPointsPer1000Syp: (j['redeem_points_per_1000_syp'] ?? 20) as int,
+        // Fallbacks match SettingsSeeder + config/business.php so a first-boot
+        // preview before /loyalty resolves lines up with what the server will
+        // actually apply. Do NOT invent numbers here.
+        earnRatePer1000Syp:     (j['earn_rate_per_1000_syp']     ?? 10)  as int,
+        redeemPointsPer1000Syp: (j['redeem_points_per_1000_syp'] ?? 100) as int,
         expiryDays:             (j['expiry_days']                ?? 180) as int,
       );
 
   static const empty = LoyaltyRules(
-    earnRatePer1000Syp: 5, redeemPointsPer1000Syp: 20, expiryDays: 180,
+    earnRatePer1000Syp: 10, redeemPointsPer1000Syp: 100, expiryDays: 180,
   );
 }
 

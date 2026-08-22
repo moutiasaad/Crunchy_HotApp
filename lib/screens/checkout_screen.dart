@@ -14,6 +14,7 @@ import '../controllers/orders_controller.dart';
 import '../models/models.dart';
 import '../services/address_service.dart';
 import '../services/api_client.dart' show ApiException;
+import '../services/app_config_service.dart';
 import '../services/cart_service.dart';
 import '../services/order_service.dart';
 import '../theme/theme.dart';
@@ -41,10 +42,9 @@ class CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
   // ─── Constants ───────────────────────────────────────────────
-  static const int _minOrderSyp    = 25000;   // matches Cart's minimum
-  static const int _pointValueSyp  = 20;      // 1 point = 20 SYP
-  static const int _pointsFloor    = 200;     // hidden below this balance
-  static const int _etaMinutes     = 35;
+  static const int _minOrderSyp = 25000;   // matches Cart's minimum
+  static const int _pointsFloor = 200;     // hidden below this balance
+  static const int _etaMinutes  = 35;
 
   // ─── UI state ────────────────────────────────────────────────
   PayMethod _pay        = PayMethod.cash;
@@ -64,9 +64,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.initState();
     _addressCtrl.addListener(() => setState(() {}));
     _couponCtrl.addListener(() => setState(() {}));
-    // Prime the customer's coupon wallet so it's ready to display right
-    // under the code input — no waiting for a spinner.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Refresh the live delivery fee before the user sees the total. Config
+      // notifies CartController → totals reflow. Fire-and-forget; if the
+      // fetch fails we keep the last-known value (server is authoritative at
+      // place-order time).
+      unawaited(context.read<AppConfigService>().load());
+
       final loyalty = context.read<LoyaltyController>();
       if (context.read<AuthController>().isSignedIn) {
         loyalty.loadCoupons();
@@ -91,8 +96,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   bool get _showPointsRow =>
       context.read<AuthController>().isSignedIn && _pointsBalance >= _pointsFloor;
 
-  int get _pointsDiscountRaw =>
-      _usePoints ? _pointsBalance * _pointValueSyp : 0;
+  /// Max discount the user's balance could buy at the current admin rate.
+  /// Mirrors `PricingEngine::quote()` — `floor(points / rate) * 1000` SYP.
+  /// Reads the rate live from AppConfigService so an admin edit that lands
+  /// mid-session (via the Checkout mount reload) updates the preview.
+  int get _pointsDiscountRaw {
+    if (!_usePoints) return 0;
+    final rate = context.read<AppConfigService>().loyaltyRedeemPer1000Syp;
+    if (rate <= 0) return 0;
+    return (_pointsBalance ~/ rate) * 1000;
+  }
 
   /// Cap points discount at the remaining bill after fee + coupon.
   int _pointsDiscount(int subtotal, int fee) {
@@ -570,11 +583,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                       Padding(
                         padding: const EdgeInsetsDirectional.fromSTEB(16, 0, 16, 14),
                         child: _PointsRow(
-                          on:        _usePoints,
-                          balance:   _pointsBalance,
-                          valueSyp:  _pointValueSyp,
-                          capped:    _usePoints && points < _pointsDiscountRaw,
-                          onChanged: (v) => setState(() => _usePoints = v),
+                          on:         _usePoints,
+                          balance:    _pointsBalance,
+                          redeemRate: context.watch<AppConfigService>().loyaltyRedeemPer1000Syp,
+                          capped:     _usePoints && points < _pointsDiscountRaw,
+                          onChanged:  (v) => setState(() => _usePoints = v),
                         ),
                       ),
 
@@ -1401,18 +1414,19 @@ class _AppliedRow extends StatelessWidget {
 class _PointsRow extends StatelessWidget {
   final bool   on;
   final int    balance;
-  final int    valueSyp;
+  final int    redeemRate;
   final bool   capped;
   final ValueChanged<bool> onChanged;
 
   const _PointsRow({
-    required this.on, required this.balance, required this.valueSyp,
+    required this.on, required this.balance, required this.redeemRate,
     required this.capped, required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    final worth = balance * valueSyp;
+    // Same stepped math as PricingEngine — `floor(points / rate) * 1000`.
+    final worth = redeemRate > 0 ? (balance ~/ redeemRate) * 1000 : 0;
     final detail = capped
         ? 'تم استخدام النقاط اللازمة فقط'
         : '$balance نقطة = خصم ${ChMoney.format(worth)}';

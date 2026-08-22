@@ -30,21 +30,28 @@ class AuthService {
 
   AuthService(this._prefs, this._api);
 
-  /// Ask the backend to email a 6-digit OTP to [email].
+  /// Ask the backend to send a 6-digit OTP to [phone] via WhatsApp.
   ///
-  /// Laravel returns 200 whether the email exists or not (no user
-  /// enumeration), so the only failure paths are network + 429.
+  /// [phone] must be E.164 (`+countrycode…`). Laravel returns 200 whether
+  /// the phone exists or not (no user enumeration); the only failure paths
+  /// are validation (invalid phone), 429 (rate limit), or the wavadesk
+  /// service refusing (invalid number, no WA instance, cooldown, etc.) which
+  /// the backend surfaces as 422 with an Arabic message.
+  ///
   /// **No account is created on this call** — signup happens inside
   /// [verifyOtp] after a valid code is entered.
-  Future<void> requestOtp(String email) async {
-    final hex = email.codeUnits
-        .map((c) => c.toRadixString(16).padLeft(4, '0'))
-        .join(' ');
-    _log('requestOtp → email="$email"  len=${email.length}  chars=[$hex]');
+  Future<void> requestOtp(String phone) async {
+    _log('requestOtp → phone="$phone"');
     try {
-      await _api.post('/auth/otp/request', data: {'email': email});
-      await _prefs.setLastEmail(email);
-      _log('requestOtp ✓ (email queued; account NOT created — check Laravel log for the code)');
+      await _api.post('/auth/otp/request', data: {'phone': phone});
+      await _prefs.setLastPhone(phone);
+      _log('requestOtp ✓ (WA message queued; account NOT created)');
+    } on ApiValidationException catch (e) {
+      // The backend returns 422 for both invalid phone AND wavadesk refusal
+      // (invalid_phone, no_instance, cooldown, gateway_error). Surface the
+      // server's Arabic message verbatim so the UI can display it as-is.
+      _log('requestOtp ✗ ${e.firstError ?? e.message}');
+      rethrow;
     } on ApiRateLimitException catch (e) {
       _log('requestOtp ✗ rate-limited (retry after ${e.retryAfterSeconds}s)');
       throw RateLimitedException(e.message, e.retryAfterSeconds);
@@ -55,22 +62,19 @@ class AuthService {
   }
 
   /// Verify the 6-digit [code]. Returns the authenticated user and stores
-  /// the bearer token in [AppPrefs]. If no account existed for [email],
-  /// the backend creates it in this call and flags `is_new_user: true`.
+  /// the bearer token in [AppPrefs]. If no account existed for [phone],
+  /// the backend creates it here and flags `is_new_user: true`.
   ///
   /// Throws [WrongOtpException] on 422, [RateLimitedException] on 429.
-  Future<User> verifyOtp(String email, String code) async {
-    // In debug builds we log the real code + its hex char codes so we can
-    // spot Arabic-Indic digits, hidden whitespace, direction marks, etc.
-    // In profile/release the `_log` helper is a no-op (guarded by kDebugMode).
+  Future<User> verifyOtp(String phone, String code) async {
     final hex = code.codeUnits
         .map((c) => c.toRadixString(16).padLeft(4, '0'))
         .join(' ');
-    _log('verifyOtp → email="$email"  code="$code"  len=${code.length}  chars=[$hex]');
+    _log('verifyOtp → phone="$phone"  code="$code"  len=${code.length}  chars=[$hex]');
 
     try {
       final data = await _api.post('/auth/otp/verify', data: {
-        'email': email,
+        'phone': phone,
         'code':  code,
       }) as Map<String, dynamic>;
 
@@ -127,14 +131,15 @@ class AuthService {
     }
   }
 
-  /// `POST /profile/complete` — writes the user's real name + phone after
-  /// signup. Server validates `phone` as Syrian mobile (`+9639XXXXXXXX`).
-  Future<User> completeProfile({required String name, required String phone}) async {
-    _log('completeProfile → name="$name" phone="$phone"');
+  /// `POST /profile/complete` — writes the user's display name after signup.
+  /// Phone is already captured + verified during WhatsApp OTP; email is
+  /// optional (pass `null` to skip).
+  Future<User> completeProfile({required String name, String? email}) async {
+    _log('completeProfile → name="$name" email="${email ?? '(none)'}"');
     try {
       final data = await _api.post('/profile/complete', data: {
-        'name':  name,
-        'phone': phone,
+        'name': name,
+        if (email != null && email.isNotEmpty) 'email': email,
       }) as Map<String, dynamic>;
       final user = User.fromJson(data['data'] as Map<String, dynamic>);
       _log('completeProfile ✓');

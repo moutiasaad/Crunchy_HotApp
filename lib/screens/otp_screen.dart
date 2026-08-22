@@ -29,8 +29,9 @@ import 'register_screen.dart';
 ///  - Success: green border flash + fade-through 240 ms to Home.
 ///  - Security note pinned to the bottom (cream box, 🔒 + reassurance line).
 class OtpScreen extends StatefulWidget {
-  /// The email the user typed on Login. Backend delivers the 6-digit code here.
-  final String email;
+  /// The E.164 phone the user typed on Login. Backend delivers the 6-digit
+  /// code to this number via WhatsApp (wavadesk).
+  final String phone;
 
   /// See [LoginScreen.returnOnSuccess] — when `true`, verify success pops
   /// back to the caller with `true` instead of rebuilding the stack on Home.
@@ -38,7 +39,7 @@ class OtpScreen extends StatefulWidget {
 
   const OtpScreen({
     super.key,
-    required this.email,
+    required this.phone,
     this.returnOnSuccess = false,
   });
 
@@ -47,8 +48,7 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
-  // 6-digit email OTP (matches the Laravel backend). Change to 4 if you ever
-  // switch to an SMS provider that ships shorter codes.
+  // 6-digit WhatsApp OTP (matches the wavadesk default + Laravel validator).
   static const int _len = 6;
 
   final TextEditingController _code  = TextEditingController();
@@ -155,7 +155,7 @@ class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
       debugPrint(
         '[OTP] normalized → "$norm"  len=${norm.length}  ${raw == norm ? "(same)" : "(digits converted)"}',
       );
-      debugPrint('[OTP] pending email = "${widget.email}"  attempt #${_attempts + 1}');
+      debugPrint('[OTP] pending phone = "${widget.phone}"  attempt #${_attempts + 1}');
     }
 
     final auth = context.read<AuthController>();
@@ -240,7 +240,7 @@ class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
     setState(() => _error = null);
 
     final auth = context.read<AuthController>();
-    final ok = await auth.requestOtp(widget.email);
+    final ok = await auth.requestOtp(widget.phone);
     if (!ok) return;
     _startCountdown();
   }
@@ -298,12 +298,12 @@ class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 8),
 
-                  // ---------- Body (with LTR email) ----------
+                  // ---------- Body (with LTR phone number) ----------
                   Text.rich(
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: 'أرسلنا رمز مؤلف من 6 أرقام إلى ',
+                          text: 'أرسلنا رمز مؤلف من 6 أرقام عبر واتساب إلى ',
                           style: GoogleFonts.cairo(fontSize: 15, height: 1.7, color: CH.muted),
                         ),
                         WidgetSpan(
@@ -312,7 +312,7 @@ class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
                           child: Directionality(
                             textDirection: TextDirection.ltr,
                             child: Text(
-                              widget.email,
+                              widget.phone,
                               style: GoogleFonts.cairo(
                                 fontSize: 15, fontWeight: FontWeight.w800, color: CH.ink, height: 1.7,
                               ),
@@ -320,7 +320,7 @@ class _OtpScreenState extends State<OtpScreen> with TickerProviderStateMixin {
                           ),
                         ),
                         TextSpan(
-                          text: ' — تحقّق من صندوق الوارد و"البريد المزعج".',
+                          text: ' — افتح واتساب لاستلام الرمز.',
                           style: GoogleFonts.cairo(fontSize: 15, height: 1.7, color: CH.muted),
                         ),
                       ],

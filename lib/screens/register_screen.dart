@@ -5,15 +5,15 @@ import 'package:provider/provider.dart';
 
 import '../controllers/auth_controller.dart';
 import '../theme/theme.dart';
-import '../widgets/ch_phone_field.dart';
 import 'app_shell.dart';
 
 /// Screen 03b — Register (إكمال الحساب).
 ///
 /// Shown right after OTP verify when the user's profile is incomplete
-/// (fresh signup or missing name/phone). Posts to `POST /profile/complete`
-/// via [AuthController.completeProfile]. Same `returnOnSuccess` contract as
-/// the login gate — pops with `true` when we came from a guest action.
+/// (fresh signup with no display name). Phone is already captured + verified
+/// during login (WhatsApp OTP), so this screen only asks for the display
+/// name plus an optional email for order-status notifications. Posts to
+/// `POST /profile/complete` via [AuthController.completeProfile].
 class RegisterScreen extends StatefulWidget {
   final bool returnOnSuccess;
   const RegisterScreen({super.key, this.returnOnSuccess = false});
@@ -24,38 +24,45 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _name  = TextEditingController();
+  final TextEditingController _email = TextEditingController();
   final FocusNode _nameFocus  = FocusNode();
-  final FocusNode _phoneFocus = FocusNode();
+  final FocusNode _emailFocus = FocusNode();
 
-  /// E.164 form emitted by ChPhoneField (e.g. `+963946193094`).
-  String _phoneE164 = '';
-  bool   _phoneValid = false;
+  static final RegExp _rxEmail = RegExp(r'^[\w.+-]+@[\w-]+\.[\w.-]+$');
 
   @override
   void initState() {
     super.initState();
     _name.addListener(() => setState(() {}));
+    _email.addListener(() => setState(() {}));
     _nameFocus.addListener(() => setState(() {}));
-    _phoneFocus.addListener(() => setState(() {}));
+    _emailFocus.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _name.dispose();
+    _email.dispose();
     _nameFocus.dispose();
-    _phoneFocus.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 
   bool get _nameValid  => _name.text.trim().length >= 2;
+  /// Email is optional. When present it must parse; when empty it's fine.
+  bool get _emailValid {
+    final t = _email.text.trim();
+    return t.isEmpty || _rxEmail.hasMatch(t);
+  }
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    if (!_nameValid || !_phoneValid) return;
+    if (!_nameValid || !_emailValid) return;
 
+    final emailTrim = _email.text.trim();
     final ok = await context.read<AuthController>().completeProfile(
           name:  _name.text.trim(),
-          phone: _phoneE164,
+          email: emailTrim.isEmpty ? null : emailTrim,
         );
     if (!ok || !mounted) return;
 
@@ -77,7 +84,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
-    final canSubmit = _nameValid && _phoneValid && !auth.sending;
+    final canSubmit = _nameValid && _emailValid && !auth.sending;
     final topInset = MediaQuery.paddingOf(context).top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -112,34 +119,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               color: CH.ink, height: 1.2)),
                           const SizedBox(height: 8),
                           Text(
-                            'خطوة أخيرة عشان تقدر تطلب — منحتاج اسمك ورقم موبايلك.',
+                            'اسمك بيظهر مع طلباتك — رقم جوالك محفوظ من عملية الدخول.',
                             style: GoogleFonts.cairo(
                               fontSize: 15, height: 1.7, color: CH.muted)),
                           const SizedBox(height: 26),
 
-                          _FieldLabel(text: 'الاسم الكامل'),
+                          const _FieldLabel(text: 'الاسم الكامل'),
                           const SizedBox(height: 8),
                           _NameField(
                             controller: _name,
                             focusNode:  _nameFocus,
                             valid:      _nameValid,
-                            onSubmitted: (_) => _phoneFocus.requestFocus(),
+                            onSubmitted: (_) => _emailFocus.requestFocus(),
                           ),
 
                           const SizedBox(height: 18),
-                          _FieldLabel(text: 'رقم الموبايل'),
+                          Row(
+                            children: [
+                              const _FieldLabel(text: 'البريد الإلكتروني'),
+                              const SizedBox(width: 6),
+                              Text('(اختياري)',
+                                style: GoogleFonts.cairo(
+                                  fontSize: 12, color: CH.muted)),
+                            ],
+                          ),
                           const SizedBox(height: 8),
-                          ChPhoneField(
-                            focusNode: _phoneFocus,
-                            onChanged: (e164) {
-                              context.read<AuthController>().clearError();
-                              setState(() {
-                                _phoneE164  = e164;
-                                _phoneValid = e164.length >= 10;   // + at least 9 local digits
-                              });
-                            },
+                          _EmailField(
+                            controller:  _email,
+                            focusNode:   _emailFocus,
+                            valid:       _email.text.trim().isNotEmpty && _emailValid,
+                            hasError:    _email.text.trim().isNotEmpty && !_emailValid && !_emailFocus.hasFocus,
                             onSubmitted: (_) => _submit(),
                           ),
+                          const SizedBox(height: 6),
+                          Text('لاستلام إشعارات الطلب بالإيميل — يمكنك تركه فارغاً.',
+                            style: GoogleFonts.cairo(
+                              fontSize: 12, color: CH.muted)),
 
                           if (auth.error != null) ...[
                             const SizedBox(height: 10),
@@ -261,6 +276,87 @@ class _NameField extends StatelessWidget {
             const Icon(Icons.check_circle_rounded, color: CH.green, size: 20),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _EmailField extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool valid;
+  final bool hasError;
+  final ValueChanged<String>? onSubmitted;
+  const _EmailField({
+    required this.controller, required this.focusNode,
+    required this.valid, required this.hasError, this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final focused = focusNode.hasFocus;
+    final borderColor = hasError
+        ? CH.red
+        : (focused || valid) ? CH.hot : CH.line;
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: focused ? const Color(0xFFFFF7F2) : CH.cream,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.mail_outline_rounded, size: 18, color: CH.muted),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 22, color: CH.line),
+            const SizedBox(width: 10),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.email],
+                autocorrect: false,
+                enableSuggestions: false,
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  LengthLimitingTextInputFormatter(255),
+                ],
+                onSubmitted: onSubmitted,
+                cursorColor: CH.hot,
+                style: GoogleFonts.cairo(
+                  fontSize: 16, fontWeight: FontWeight.w700, color: CH.ink),
+                decoration: InputDecoration(
+                  border:            InputBorder.none,
+                  enabledBorder:     InputBorder.none,
+                  focusedBorder:     InputBorder.none,
+                  errorBorder:       InputBorder.none,
+                  focusedErrorBorder:InputBorder.none,
+                  disabledBorder:    InputBorder.none,
+                  filled:            false,
+                  fillColor:         Colors.transparent,
+                  isDense:           true,
+                  contentPadding:    EdgeInsets.zero,
+                  hintText: 'example@gmail.com',
+                  hintTextDirection: TextDirection.ltr,
+                  hintStyle: GoogleFonts.cairo(
+                    fontSize: 15, fontWeight: FontWeight.w600,
+                    color: const Color(0xFFB3A396)),
+                ),
+              ),
+            ),
+            if (valid) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.check_circle_rounded, color: CH.green, size: 20),
+            ],
+          ],
+        ),
       ),
     );
   }

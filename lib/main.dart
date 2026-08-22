@@ -69,7 +69,7 @@ Future<void> main() async {
   ));
 }
 
-class CrunchyHotApp extends StatelessWidget {
+class CrunchyHotApp extends StatefulWidget {
   const CrunchyHotApp({
     super.key,
     required this.apiClient,
@@ -82,18 +82,45 @@ class CrunchyHotApp extends StatelessWidget {
   final PushNotificationsService pushService;
 
   @override
+  State<CrunchyHotApp> createState() => _CrunchyHotAppState();
+}
+
+class _CrunchyHotAppState extends State<CrunchyHotApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App came back to foreground → re-pull live config so a mid-session
+    // admin edit to `business.delivery_fee_syp` propagates before the user
+    // sees Cart/Checkout again.
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.appConfig.load());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final prefs  = AppPrefs.instance;
-    final client = apiClient;
+    final client = widget.apiClient;
 
     return MultiProvider(
       providers: [
         // ─── HTTP transport ───
         Provider<ApiClient>(create: (_) => client),
-        Provider<PushNotificationsService>.value(value: pushService),
+        Provider<PushNotificationsService>.value(value: widget.pushService),
 
         // ─── Live public config (delivery fee, hours, …) ───
-        ChangeNotifierProvider<AppConfigService>.value(value: appConfig),
+        ChangeNotifierProvider<AppConfigService>.value(value: widget.appConfig),
 
         // ─── Services (stateless singletons) ───
         Provider<AuthService>   (create: (_) => AuthService(prefs, client)),

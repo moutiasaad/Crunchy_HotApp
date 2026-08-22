@@ -2,47 +2,81 @@ import 'package:flutter/foundation.dart';
 
 import 'api_client.dart';
 
+void _log(String msg) {
+  if (kDebugMode) debugPrint('[Config] $msg');
+}
+
 /// Live public config from `GET /api/v1/config` — currently just the flat
-/// delivery fee, but this is where any other admin-editable business value
-/// (min-order, prep minutes, …) will land.
+/// delivery fee + loyalty notice, but this is where any other admin-editable
+/// business value (min-order, prep minutes, …) will land.
 ///
-/// Fetched once at app boot and again when the checkout screen mounts so a
-/// mid-session admin change lands before the customer commits. Server caches
-/// the payload for 60 seconds, so re-hitting the endpoint is cheap.
+/// [load] is called from:
+///   - `main.dart` at app boot (fire-and-forget)
+///   - `CrunchyHotApp` on `AppLifecycleState.resumed` (app returns from bg)
+///   - `CartScreen` on TabActivate + retap + first-mount
+///   - `CheckoutScreen` on first frame
 ///
-/// The client keeps a 5,000 SYP fallback so cart totals still render if the
-/// very first fetch fails (offline boot); the server is authoritative when
+/// The server caches the payload for 60 s so re-hitting is cheap. On the
+/// very first launch (offline boot) the fallback delivery fee is used until
+/// a load succeeds; the server's `PricingEngine` is authoritative when
 /// `POST /orders` runs, so this fallback never causes a wrong charge — only
 /// a briefly wrong preview.
 class AppConfigService extends ChangeNotifier {
   final ApiClient _api;
   AppConfigService(this._api);
 
-  static const int _fallbackDeliveryFeeSyp = 5000;
+  /// Matches `SettingsSeeder::business.delivery_fee_syp` on the server so
+  /// a first-boot fallback lines up with what a freshly-seeded prod DB
+  /// would return. Admin edits move the DB value; the app picks them up on
+  /// the next `load()`.
+  static const int _seedDefaultDeliveryFeeSyp = 5000;
 
-  int    _deliveryFeeSyp  = _fallbackDeliveryFeeSyp;
-  String _loyaltyNoticeAr = '';
-  bool   _loaded          = false;
+  /// Matches `SettingsSeeder::business.loyalty.redeem_per_1000_syp`. Server's
+  /// `PricingEngine` applies discount as `floor(points / rate) * 1000` SYP —
+  /// the app uses the same formula in Checkout so the preview matches.
+  static const int _seedDefaultLoyaltyRedeemRate = 100;
 
-  int    get deliveryFeeSyp  => _deliveryFeeSyp;
+  int    _deliveryFeeSyp          = _seedDefaultDeliveryFeeSyp;
+  int    _loyaltyRedeemPer1000Syp = _seedDefaultLoyaltyRedeemRate;
+  String _loyaltyNoticeAr         = '';
+  bool   _loaded                  = false;
+
+  int    get deliveryFeeSyp          => _deliveryFeeSyp;
+  /// Points required per 1000 SYP of discount at Checkout (server-authoritative).
+  int    get loyaltyRedeemPer1000Syp => _loyaltyRedeemPer1000Syp;
   /// Admin-editable notice shown at the top of the Rewards screen. Empty
   /// string means the admin hasn't written a message — screens should hide
   /// the notice card in that case.
-  String get loyaltyNoticeAr => _loyaltyNoticeAr;
-  bool   get isLoaded        => _loaded;
+  String get loyaltyNoticeAr         => _loyaltyNoticeAr;
+  bool   get isLoaded                => _loaded;
 
   Future<void> load() async {
     try {
+      _log('load → GET /config');
       final resp = await _api.get('/config');
-      if (resp is! Map) return;
+      if (resp is! Map) {
+        _log('load ✗ non-map response');
+        return;
+      }
       final business = resp['business'];
-      if (business is! Map) return;
+      if (business is! Map) {
+        _log('load ✗ missing business key');
+        return;
+      }
 
       var changed = false;
 
       final fee = (business['delivery_fee_syp'] as num?)?.toInt();
       if (fee != null && fee >= 0 && fee != _deliveryFeeSyp) {
+        _log('load ✓ delivery_fee_syp $_deliveryFeeSyp → $fee');
         _deliveryFeeSyp = fee;
+        changed = true;
+      }
+
+      final redeemRate = (business['loyalty_redeem_per_1000_syp'] as num?)?.toInt();
+      if (redeemRate != null && redeemRate > 0 && redeemRate != _loyaltyRedeemPer1000Syp) {
+        _log('load ✓ loyalty_redeem_per_1000_syp $_loyaltyRedeemPer1000Syp → $redeemRate');
+        _loyaltyRedeemPer1000Syp = redeemRate;
         changed = true;
       }
 
@@ -52,9 +86,11 @@ class AppConfigService extends ChangeNotifier {
         changed = true;
       }
 
+      final wasLoaded = _loaded;
       _loaded = true;
-      if (changed) notifyListeners();
-    } catch (_) {
+      if (changed || !wasLoaded) notifyListeners();
+    } catch (e) {
+      _log('load ✗ $e');
       // Silent — keep the previous values. Screens should render sensibly
       // with defaults; the server is authoritative wherever it matters.
     }
